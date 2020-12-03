@@ -5,8 +5,8 @@
   "main": "index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc -p .",
-    "prod": "npm run build && uglifyjs build/index.js -c -m -o dist/index.js",
+    "build": "tsc -p ./tsconfig.json",
+    "prod": "npm run build && npx mkdirp build/dist && uglifyjs build/index.js -c -m -o build/dist/index.js",
     "dev": "nodemon --watch src/**/*.{ts,js} --exec \"ts-node\" src/index.ts"
   },
   "author": "Skylar Cupit",
