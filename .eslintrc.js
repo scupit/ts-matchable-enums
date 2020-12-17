@@ -151,7 +151,7 @@ module.exports = {
             "warn",
             "never"
         ],
-        "prefer-arrow/prefer-arrow-functions": "warn",
+        "prefer-arrow/prefer-arrow-functions": "off",
         "prefer-const": "warn",
         "radix": "warn",
         "use-isnan": "warn",
