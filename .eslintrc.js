@@ -13,7 +13,8 @@ Happy linting! 💖
 */
 module.exports = {
     "env": {
-        "node": true
+        "node": true,
+        "ES2021": true
     },
     "extends": [
         "plugin:@typescript-eslint/recommended",
