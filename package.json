@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p ./tsconfig.json",
-    "prod": "npm run build && npx mkdirp build/dist && uglifyjs build/index.js -c -m -o build/dist/index.js",
+    "prod": "tsc -p ./tsconfig.json --sourceMap false && webpack ./build/index.js --output-filename index.min.js --mode production --target node",
     "dev": "nodemon --watch src/**/*.{ts,js} --exec \"ts-node\" src/index.ts"
   },
   "author": "Skylar Cupit",
@@ -24,6 +24,8 @@
     "ts-node": "^9.0.0",
     "tslint": "^6.1.3",
     "typescript": "^4.1.2",
-    "uglify-js": "^3.12.1"
+    "uglify-js": "^3.12.1",
+    "webpack": "^5.24.2",
+    "webpack-cli": "^4.5.0"
   }
 }
