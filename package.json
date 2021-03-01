@@ -2,11 +2,11 @@
   "name": "node-root-project",
   "version": "1.0.0",
   "description": "Base project for use with NodeJS",
-  "main": "index.ts",
+  "main": "src/index.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc -p ./tsconfig.json",
-    "prod": "tsc -p ./tsconfig.json --sourceMap false && webpack ./build/index.js --output-filename index.min.js --mode production --target node",
+    "prod": "tsc -p ./tsconfig.json --sourceMap false && webpack ./build/index.js -o ./dist --output-filename index.min.js --mode production --target node",
     "dev": "nodemon --watch src/**/*.{ts,js} --exec \"ts-node\" src/index.ts"
   },
   "author": "Skylar Cupit",
