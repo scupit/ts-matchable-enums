@@ -1,28 +1,23 @@
-import { DefiniteValue, exhaustiveMatch, Matchable, UnknownKeyMatchable } from "./ComplexApiResponse";
+import { exhaustiveMatch, Matchable, UnknownKeyMatchable } from "./ComplexApiResponse";
 
 enum E_Result {
   SOME,
   NONE
 }
 
-
-class WideResult<T> extends UnknownKeyMatchable<
+class Result<T> extends UnknownKeyMatchable<
   typeof E_Result,
   {
-    SOME: [DefiniteValue<T>, string],
+    SOME: [T, string],
     NONE: void 
   }
 > {
   public override readonly enumInstance = E_Result;
 }
 
-type Result = WideResult<number>;
-// This is the final type which represents a sum type enum
-const Result: Result = new WideResult();
+const value = (new Result<number>()).of("SOME", [12, "this is a 12"]);
 
-const value = Result.of("SOME", [12, "this is a 12"]);
-
-function doSomething<T>(res: Matchable<Result>) {
+function doSomething(res: Matchable<Result<number>>) {
   exhaustiveMatch(res, {
     SOME([num, description]) {
       console.log(`Num ${num} has the description: "${description}"`)
@@ -33,11 +28,11 @@ function doSomething<T>(res: Matchable<Result>) {
   })
 }
 
-function returnSomething(n: number): Matchable<Result> {
+function returnSomething<T extends number>(n: T): Matchable<Result<T>> {
   if (n > 10) {
-    return Result.of("SOME", [n, `this is ${n}`])
+    return (new Result<T>()).of("SOME", [n, `this is ${n}`])
   }
-  else return Result.of("NONE", void 0);
+  else return (new Result<T>()).of("NONE", void 0);
 }
 
 doSomething(value);

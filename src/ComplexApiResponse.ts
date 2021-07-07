@@ -1,11 +1,6 @@
 import { getEnumKey, getEnumValue } from "./EnumHelper";
 import { EnumKeyTypes, EnumType, EnumValueTypes } from "./EnumTyping";
 
-// Utility type for specifying to the compiler that a type should never be void, undefined, or never
-export type DefiniteValue<T> = T extends void
-  ? never
-  : T;
-
 // Specifying all these types at once provides the ability to auto generate conversion
 // functions and type-safe data handlers per response status.
 type DataWrapper<T> = T;
