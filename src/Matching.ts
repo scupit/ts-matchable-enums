@@ -1,5 +1,4 @@
-import { getEnumKey, getEnumValue } from "./EnumHelper";
-import { EnumKeyTypes, EnumType, EnumValueTypes } from "./EnumTyping";
+import { EnumKeyTypes, EnumType } from "./EnumTyping";
 
 // Specifying all these types at once provides the ability to auto generate conversion
 // functions and type-safe data handlers per response status.
@@ -30,35 +29,40 @@ type MapValueTypeUnion<
     : never
 }
 
-type MatcherFunctionMap<
+type AllRequiredMatcherFunctionMap<
   E extends EnumType,
   M extends EnumKeyMap<E>,
+  ReturnType = void,
   BodyTypeMap extends NarrowedEnumKeyMap<E, M> = NarrowedEnumKeyMap<E, M>
 > = {
   [key in keyof BodyTypeMap]: BodyTypeMap[key] extends DataWrapper<infer T>
     // This is the type conversion function
-    ? (body: T) => void
+    ? (body: T) => ReturnType
     : never;
 }
 
 type RealMatcherFunctionMap<
   E extends EnumType,
   M extends EnumKeyMap<E>,
+  ReturnType = void,
   BodyTypeMap extends NarrowedEnumKeyMap<E, M> = NarrowedEnumKeyMap<E, M>
-> = MatcherFunctionMap<E, M, BodyTypeMap> | ({
+> = AllRequiredMatcherFunctionMap<E, M, ReturnType, BodyTypeMap> | ({
   [key in keyof BodyTypeMap]?: BodyTypeMap[key] extends DataWrapper<infer T>
     // This is the type conversion function
-    ? (body: T) => void
+    ? (body: T) => ReturnType
     : never;
-} & { ELSE(): void })
+} & { ELSE(): ReturnType })
 
 export abstract class UnknownKeyMatchable<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 > {
-  // As the name says, this is just a placeholder name so that 
+  // As the name says, this is just a placeholder name so that the ParamMap type can be referenced
+  // per instance from outside
   public readonly _paramMapTypePlaceholder!: ParamMap;
+
+  // Same as above, necessary for referencing the type. May also help with generating data later.
   public readonly abstract enumInstance: E;
 
   of<K extends keyof NarrowedParamMap>(
@@ -69,15 +73,7 @@ export abstract class UnknownKeyMatchable<
   }
 }
 
-// Must be used as the function parameter type which is to be matched.
-export type Matchable<
-  U extends any extends UnknownKeyMatchable<infer E, infer ParamMap, infer NarrowedParamMap>
-    ? UnknownKeyMatchable<E, ParamMap, NarrowedParamMap>
-    : never
-> = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
-
-
-// Matchable item with key not known at compile time
+// Matchable item with key known by the compiler depending on which function branch is selected.
 class KnownKeyMatchable<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
@@ -91,20 +87,41 @@ class KnownKeyMatchable<
   ) { }
 }
 
+// Wrap an UnknownKeyMatchable type in function params or return type. This allows a matchable enum variant
+// to be passed around and matched safely.
+export type Matchable<
+  U extends any extends UnknownKeyMatchable<infer E, infer ParamMap, infer NarrowedParamMap>
+    ? UnknownKeyMatchable<E, ParamMap, NarrowedParamMap>
+    : never
+> = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
+
 export function exhaustiveMatch<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
+  ReturnType = void,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
-  matcherFuncMap: RealMatcherFunctionMap<E, ParamMap, NarrowedParamMap>
-): void {
-  const key = dataItem.key;
+  matcherFuncMap: RealMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>
+): ReturnType {
+  const matchedKey = dataItem.key;
 
-  if (key in matcherFuncMap) {
-    matcherFuncMap[dataItem.key]?.(dataItem.data);
+  if (matchedKey in matcherFuncMap) {
+    const matcherFunc = matcherFuncMap[dataItem.key];
+
+    if (typeof matcherFunc === "function") {
+      return matcherFunc(dataItem.data);
+    }
+    else {
+      // Shouldn't ever be able to happen.
+      throw ReferenceError(`Tried to call function at matched key ${matchedKey}, however the function does not exist.`);
+    }
   }
   else if ("ELSE" in matcherFuncMap){
-    matcherFuncMap["ELSE"]();
+    return matcherFuncMap["ELSE"]();
+  }
+  else {
+    // Shouldn't ever be able to happen.
+    throw ReferenceError(`Somehow no functions at all were matched against key ${matchedKey}. I have no idea how that is even possible.`);
   }
 }
