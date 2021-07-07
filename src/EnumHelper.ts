@@ -1,4 +1,4 @@
-import { EnumType } from "./EnumTyping.ts";
+import { EnumType } from "./EnumTyping";
 
 export function getEnumKey<T extends EnumType>(en: T, valueKey: number): string & keyof T {
   const val = en[valueKey] as keyof T | undefined;

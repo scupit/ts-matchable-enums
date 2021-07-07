@@ -1,52 +1,31 @@
-import { BasicResponse } from "./ComplexApiResponse.ts";
-import { ComplexApiResponse } from "./ComplexApiResponse.ts";
-import { HttpStatus } from "./HttpStatus.ts";
+import { exhaustiveMatch, UnknownKeyMatchable } from "./ComplexApiResponse";
 
-interface Thing {
-  theData: string;
+enum E_Result {
+  SOME,
+  NONE
 }
 
-const res = new BasicResponse(
-  HttpStatus.OK,
+type VoidElseValue<T> = T extends void
+  ? undefined
+  : T;
+
+class KeyedResult<T> extends UnknownKeyMatchable<
+  typeof E_Result,
   {
-    theData: "Wow, very nice"
+    SOME: [VoidElseValue<T>, string],
+    NONE: void 
   }
-); 
+> {}
 
-const notFoundRes = new BasicResponse(
-  HttpStatus.NO_CONTENT,
-  null
-)
+const Result: KeyedResult<void> = new KeyedResult();
 
-const noContentRes = new BasicResponse(
-  HttpStatus.NO_CONTENT,
-  undefined
-)
+const value = Result.of("SOME", [, "this is a 12"]);
 
-const temp = new ComplexApiResponse<{
-  // Honestly this looks like something I could use to simulate enum pattern matching.
-  OK: [Thing, string];
-  NOT_FOUND: [null, Thing];
-}>(
-  // res,
-  notFoundRes,
-  {
-    OK(body) {
-      return body.theData;
-    },
-    NOT_FOUND() {
-      return {
-        theData: "So sad, nothing was found"
-      };
-    }
-  }
-)
-
-temp.matchStatus({
-  OK(stringFromThing) {
-    console.log(`This is the fancy string: ${stringFromThing}`)
+exhaustiveMatch(value, {
+  SOME([num, description]) {
+    console.log(`Num ${num} has the description: "${description}"`)
   },
-  NOT_FOUND(body) {
-    console.log(body);
+  NONE() {
+    console.log("Nothing")
   }
 })
