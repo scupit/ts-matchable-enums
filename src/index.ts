@@ -22,9 +22,13 @@ function doSomething(res: Matchable<Result<number>>) {
     SOME([num, description]) {
       console.log(`Num ${num} has the description: "${description}"`)
     },
-    NONE() {
-      console.log("Nothing")
-    }
+    // Else branch exhausts all other options
+    ELSE() {
+      console.log("Else branch hit, nothing was matched");
+    },
+    // NONE() {
+    //   console.log("Nothing")
+    // }
   })
 }
 
@@ -36,6 +40,7 @@ function returnSomething<T extends number>(n: T): Matchable<Result<T>> {
 }
 
 doSomething(value);
+doSomething((new Result<number>()).of("NONE", void 0))
 
 exhaustiveMatch(returnSomething(200), {
   SOME([num, desc]) {

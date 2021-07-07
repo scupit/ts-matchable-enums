@@ -39,7 +39,18 @@ type MatcherFunctionMap<
     // This is the type conversion function
     ? (body: T) => void
     : never;
-};
+}
+
+type RealMatcherFunctionMap<
+  E extends EnumType,
+  M extends EnumKeyMap<E>,
+  BodyTypeMap extends NarrowedEnumKeyMap<E, M> = NarrowedEnumKeyMap<E, M>
+> = MatcherFunctionMap<E, M, BodyTypeMap> | ({
+  [key in keyof BodyTypeMap]?: BodyTypeMap[key] extends DataWrapper<infer T>
+    // This is the type conversion function
+    ? (body: T) => void
+    : never;
+} & { ELSE(): void })
 
 export abstract class UnknownKeyMatchable<
   E extends EnumType,
@@ -86,7 +97,14 @@ export function exhaustiveMatch<
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
-  matcherFuncMap: MatcherFunctionMap<E, ParamMap, NarrowedParamMap>
+  matcherFuncMap: RealMatcherFunctionMap<E, ParamMap, NarrowedParamMap>
 ): void {
-  matcherFuncMap[dataItem.key](dataItem.data);
+  const key = dataItem.key;
+
+  if (key in matcherFuncMap) {
+    matcherFuncMap[dataItem.key]?.(dataItem.data);
+  }
+  else if ("ELSE" in matcherFuncMap){
+    matcherFuncMap["ELSE"]();
+  }
 }
