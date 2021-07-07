@@ -95,7 +95,7 @@ export type Matchable<
     : never
 > = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
 
-class ElseIfBranch<
+class ElseIfLetBranch<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
@@ -105,6 +105,13 @@ class ElseIfBranch<
   constructor(
     public readonly key: K,
     public readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+  ) { }
+}
+
+class ElseIfBranch<ReturnType> {
+  constructor(
+    public readonly shouldFire: boolean,
+    public readonly callback: () => ReturnType
   ) { }
 }
 
@@ -125,7 +132,10 @@ export function if_let<
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   key: K,
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
-  elseIfBranches: ElseIfBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>[] = [ ],
+  elseIfBranches: Array<
+      ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
+      | ElseIfBranch<ReturnType>
+    > = [ ],
   elseFunc?: ElseFuncType
 ): ElseFuncType extends undefined
     ? ReturnType | undefined
@@ -135,17 +145,29 @@ export function if_let<
     return callback(dataItem.data);
   }
   for (const elif of elseIfBranches) {
-    if (dataItem.key === elif.key) {
-      return elif.callback(dataItem.data);
+    if (elif instanceof ElseIfLetBranch) {
+      if (dataItem.key === elif.key) {
+        return elif.callback(dataItem.data);
+      }
+    }
+    else if (elif.shouldFire) {
+      return elif.callback();
     }
   }
   return elseFunc?.callback()!;
 }
 
-export function else_branch<ReturnType = void> (
+export function else_branch<ReturnType> (
   callback: () => ReturnType
 ): ElseBranch<ReturnType> {
   return new ElseBranch<ReturnType>(callback);
+}
+
+export function else_if<ReturnType> (
+  shouldFire: boolean,
+  callback: () => ReturnType
+): ElseIfBranch<ReturnType> {
+  return new ElseIfBranch(shouldFire, callback);
 }
 
 export function else_if_let<
@@ -157,8 +179,8 @@ export function else_if_let<
 >(
   key: K,
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
-): ElseIfBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
-  return new ElseIfBranch(key, callback);
+): ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+  return new ElseIfLetBranch(key, callback);
 }
 
 export function exhaustive_match<

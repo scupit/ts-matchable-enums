@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, UnknownKeyMatchable, else_if_let } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, UnknownKeyMatchable, else_if_let, else_if } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -24,6 +24,7 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
   other: 400
 });
 
+// const val: string = if_let(complexValue, "NONE", () => {
 const val: string = if_let(value, "NONE", () => {
   console.log("NONE matched");
   return "n";
@@ -32,7 +33,11 @@ const val: string = if_let(value, "NONE", () => {
   else_if_let("SOME", ([n, str]) => {
     console.log(`Matched SOME with num ${n} and description ${str}`)
     return str;
-  })
+  }),
+  else_if(true, () => {
+    console.log("ELSE_IF")
+    return "Matched normal else"
+  }),
 ],
 else_branch(() => {
   console.log("Else matched")
