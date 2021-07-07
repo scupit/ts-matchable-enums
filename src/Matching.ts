@@ -95,19 +95,44 @@ export type Matchable<
     : never
 > = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
 
+class ElseBranch<ReturnType> {
+  private static neverFunc: () => void = () => { };
+
+  constructor(
+    public callback: () => ReturnType
+  ) { }
+
+  static makeDefault(): ElseBranch<void> {
+    return new ElseBranch(this.neverFunc);
+  }
+}
+
 export function if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+  ReturnType = void,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
+  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap, K>,
   key: K,
-  callback: AllRequiredMatcherFunctionMap<E, ParamMap, void, NarrowedParamMap>[K]
-): void {
+  callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
+  elseFunc?: ElseFuncType
+): ElseFuncType extends undefined
+    ? ReturnType | undefined
+    : ReturnType
+{
   if (dataItem.key === key) {
-    callback(dataItem.data);
+    return callback(dataItem.data);
   }
+  return elseFunc?.callback()!;
+}
+
+export function else_branch<ReturnType = void> (
+  callback: () => ReturnType
+): ElseBranch<ReturnType> {
+  return new ElseBranch<ReturnType>(callback);
 }
 
 export function exhaustive_match<
