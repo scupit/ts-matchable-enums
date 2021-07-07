@@ -95,7 +95,22 @@ export type Matchable<
     : never
 > = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
 
-export function exhaustiveMatch<
+export function if_let<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+>(
+  dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap, K>,
+  key: K,
+  callback: AllRequiredMatcherFunctionMap<E, ParamMap, void, NarrowedParamMap>[K]
+): void {
+  if (dataItem.key === key) {
+    callback(dataItem.data);
+  }
+}
+
+export function exhaustive_match<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   ReturnType = void,

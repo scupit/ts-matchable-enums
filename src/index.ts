@@ -1,4 +1,4 @@
-import { exhaustiveMatch, Matchable, UnknownKeyMatchable } from "./Matching";
+import { exhaustive_match, if_let, Matchable, UnknownKeyMatchable } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -23,8 +23,12 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
   other: 400
 });
 
+if_let(value, "SOME", ([_, desc]) => {
+  console.log(`Matched description ${desc} using if_let!`);
+})
+
 function doSomething(res: Matchable<Result<number>>) {
-  exhaustiveMatch(res, {
+  exhaustive_match(res, {
     SOME([num, description]) {
       console.log(`Num ${num} has the description: "${description}"`)
     },
@@ -39,7 +43,7 @@ function doSomething(res: Matchable<Result<number>>) {
 }
 
 function useComplex(n: Matchable<Result<number>>): void {
-  exhaustiveMatch(n, {
+  exhaustive_match(n, {
     COMPLEX({data}) {
       console.log(`Matched complex data "${data}"`);
     },
@@ -56,7 +60,7 @@ function returnSomething<T extends number>(n: T): Matchable<Result<T>> {
   else return (new Result<T>()).of("NONE", void 0);
 }
 
-const returnedVal: string = exhaustiveMatch(value, {
+const returnedVal: string = exhaustive_match(value, {
   SOME([_, desc]) {
     return desc;
   },
@@ -75,7 +79,7 @@ console.log(returnedVal);
 doSomething(value);
 doSomething((new Result<number>()).of("NONE", void 0))
 
-exhaustiveMatch(returnSomething(200), {
+exhaustive_match(returnSomething(200), {
   SOME([num, desc]) {
     console.log(`returned ${num} with description ${desc}`)
   },
