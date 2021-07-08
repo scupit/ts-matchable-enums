@@ -65,11 +65,13 @@ console.log(conditionalExpressionResult);
 
 const normalIfResult: string = if_branch(10 > 12, () => {
   return "Yeah your math is bad";
-}, [
-  else_if_let(value, "SOME", ([_, desc]) => {
-    return "Hit normal if result with desc: " + desc;
-  })
-],
+}, 
+// else_if_let(value, "SOME", ([_, desc]) => {
+//   return "Hit normal if result with desc: " + desc;
+// }),
+else_if(12 < 10, () => {
+  return "Noice";
+}),
 else_branch(() => {
   return "Normal if hit else"
 }))

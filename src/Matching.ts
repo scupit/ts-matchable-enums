@@ -145,10 +145,15 @@ type ElifLetInferrer<ReturnType> = any extends ElseIfLetBranch<
     ? ElseIfBranch<ReturnType>
     : never;
 
+type ElifBranchParamTypes<ReturnType> =
+  [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]]
+  | ElifLetInferrer<ReturnType>
+  | [ ]
+
 export function if_branch<
   ReturnType = void,
   ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ] = [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ]
+  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
 >(
   shouldRun: boolean,
   callback: () => ReturnType,
@@ -161,19 +166,7 @@ export function if_branch<
   if (shouldRun) {
     return callback();
   }
-  if (elseIfBranches !== undefined) {
-    for (const elif of elseIfBranches) {
-      if (elif instanceof ElseIfLetBranch) {
-        if (elif.shouldFire()) {
-          return elif.runCallback();
-        }
-      }
-      else if (elif.shouldFire) {
-        return elif.callback();
-      }
-    }
-  }
-  return elseFunc?.callback()!;
+  return doStarterBranchBody(elseIfBranches, elseFunc);
 }
 
 export function if_let<
@@ -183,7 +176,7 @@ export function if_let<
   ReturnType = void,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
   ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ] = [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ]
+  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   key: K,
@@ -197,7 +190,18 @@ export function if_let<
   if (dataItem.key === key) {
     return callback(dataItem.data);
   }
-  if (elseIfBranches !== undefined) {
+  return doStarterBranchBody(elseIfBranches, elseFunc);
+}
+
+function doStarterBranchBody<
+  ReturnType,
+  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
+  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
+>(
+  elseIfBranches?: TypedElifBranchList,
+  elseFunc?: ElseFuncType
+): ReturnType {
+  if (Array.isArray(elseIfBranches)) {
     for (const elif of elseIfBranches) {
       if (elif instanceof ElseIfLetBranch) {
         if (elif.shouldFire()) {
