@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let, guarded_if_let } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -40,6 +40,14 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
   data: "Nice, this is the complex data",
   other: 400
 });
+
+guarded_if_let(complexValue, "COMPLEX", ({other}) => other >= 400, ({other}) => {
+  console.log(`other is >= 400 (is ${other})`);
+},
+[ ],
+else_branch(() => {
+  console.log("other is less than 400")
+}))
 
 // const val: string = if_let(complexValue, "NONE", () => {
 const conditionalExpressionResult: string = if_let(value, "NONE", () => {

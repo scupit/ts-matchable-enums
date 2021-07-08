@@ -207,6 +207,32 @@ export function if_branch<
   return runOtherBranches(elseIfBranches, elseFunc);
 }
 
+// Same as if let, but guarded. Guarded if-let only runs when the guard predicate returns true.
+export function guarded_if_let<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType = void,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
+  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
+  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
+>(
+  dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
+  key: K,
+  guardFunc: AllRequiredMatcherFunctionMap<E, ParamMap, boolean, NarrowedParamMap>[K],
+  callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
+  elseIfBranches?: TypedElifBranchList,
+  elseFunc?: ElseFuncType
+): ElseFuncType extends void
+    ? ReturnType | void
+    : ReturnType
+{
+  if (dataItem.key === key && guardFunc(dataItem.data)) {
+    return callback(dataItem.data);
+  }
+  return runOtherBranches(elseIfBranches, elseFunc);
+}
+
 // "if let control flow". Only runs when the Key matches the variant type. Same expression rules
 // as the normal if_branch above.
 export function if_let<
