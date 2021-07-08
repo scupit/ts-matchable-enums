@@ -145,6 +145,37 @@ type ElifLetInferrer<ReturnType> = any extends ElseIfLetBranch<
     ? ElseIfBranch<ReturnType>
     : never;
 
+export function if_branch<
+  ReturnType = void,
+  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
+  TypedElifBranchList extends [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ] = [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ]
+>(
+  shouldRun: boolean,
+  callback: () => ReturnType,
+  elseIfBranches?: TypedElifBranchList,
+  elseFunc?: ElseFuncType
+): ElseFuncType extends undefined
+    ? ReturnType | undefined
+    : ReturnType
+{
+  if (shouldRun) {
+    return callback();
+  }
+  if (elseIfBranches !== undefined) {
+    for (const elif of elseIfBranches) {
+      if (elif instanceof ElseIfLetBranch) {
+        if (elif.shouldFire()) {
+          return elif.runCallback();
+        }
+      }
+      else if (elif.shouldFire) {
+        return elif.callback();
+      }
+    }
+  }
+  return elseFunc?.callback()!;
+}
+
 export function if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,

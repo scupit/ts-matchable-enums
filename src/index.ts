@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, UnknownKeyMatchable, else_if_let, else_if } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, UnknownKeyMatchable, else_if_let, else_if, if_branch } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -62,6 +62,19 @@ else_branch(() => {
 }))
 
 console.log(conditionalExpressionResult);
+
+const normalIfResult: string = if_branch(10 > 12, () => {
+  return "Yeah your math is bad";
+}, [
+  else_if_let(value, "SOME", ([_, desc]) => {
+    return "Hit normal if result with desc: " + desc;
+  })
+],
+else_branch(() => {
+  return "Normal if hit else"
+}))
+
+console.log(normalIfResult);
 
 // const TEMP: string = if_let(value, "SOME", ([_, desc]) => {
 //   console.log(`Matched description ${desc} using if_let!`);
