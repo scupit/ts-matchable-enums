@@ -17,7 +17,24 @@ class Result<T> extends UnknownKeyMatchable<
   public override readonly enumInstance = E_Result;
 }
 
+enum E_Direction {
+  UP,
+  DOWN
+}
+
+class Direction extends UnknownKeyMatchable<
+  typeof E_Direction,
+  {
+    UP: [number, number],
+    DOWN: void
+  }
+> {
+  public override readonly enumInstance = E_Direction
+}
+
+
 const value = (new Result<number>()).of("SOME", [12, "Some description is here"]);
+const otherValue: Matchable<Direction> = (new Direction()).of("UP", [14, -55]);
 
 const complexValue = (new Result<number>()).of("COMPLEX", {
   data: "Nice, this is the complex data",
@@ -25,24 +42,26 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
 });
 
 // const val: string = if_let(complexValue, "NONE", () => {
-const val: string = if_let(value, "NONE", () => {
-  console.log("NONE matched");
-  return "n";
+const conditionalExpressionResult: string = if_let(value, "NONE", () => {
+  return "NONE matched"
 },
 [
-  else_if_let("SOME", ([n, str]) => {
-    console.log(`Matched SOME with num ${n} and description ${str}`)
-    return str;
+  else_if_let(complexValue, "SOME", ([n, str]) => {
+    return `Matched SOME with num ${n} and description ${str}`;
+  }),
+  else_if_let(otherValue, "UP", ([n1, n2]) => {
+    console.log("WOO")
+    return `${n1}${n2}`;
   }),
   else_if(true, () => {
-    console.log("ELSE_IF")
-    return "Matched normal else"
+    return "Matched normal else_if"
   }),
 ],
 else_branch(() => {
-  console.log("Else matched")
-  return "el";
+  return "else hit";
 }))
+
+console.log(conditionalExpressionResult);
 
 // const TEMP: string = if_let(value, "SOME", ([_, desc]) => {
 //   console.log(`Matched description ${desc} using if_let!`);

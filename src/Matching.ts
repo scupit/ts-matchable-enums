@@ -103,9 +103,21 @@ class ElseIfLetBranch<
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
 > {
   constructor(
+    public readonly dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
     public readonly key: K,
-    public readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+    private readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
   ) { }
+
+  public runCallback(): ReturnType {
+    if (this.key !== this.dataItemMatching.key) {
+      throw TypeError(`Tried to run a callback on a matchable item (key ${this.dataItemMatching.key}) which does not match key ${this.key}`)
+    }
+    return this.callback(this.dataItemMatching.data);
+  }
+
+  public shouldFire(): boolean {
+    return this.dataItemMatching.key === this.key;
+  }
 }
 
 class ElseIfBranch<ReturnType> {
@@ -121,21 +133,31 @@ class ElseBranch<ReturnType> {
   ) { }
 }
 
+type ElifLetInferrer<ReturnType> = any extends ElseIfLetBranch<
+  infer K,
+  infer E,
+  infer ParamMap,
+  infer R,
+  infer NarrowedParamMap
+>
+  ? ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
+  : any extends ElseIfBranch<infer R>
+    ? ElseIfBranch<ReturnType>
+    : never;
+
 export function if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   ReturnType = void,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
-  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined
+  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
+  TypedElifBranchList extends [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ] = [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]] | [ ]
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   key: K,
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
-  elseIfBranches: Array<
-      ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
-      | ElseIfBranch<ReturnType>
-    > = [ ],
+  elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
 ): ElseFuncType extends undefined
     ? ReturnType | undefined
@@ -144,14 +166,16 @@ export function if_let<
   if (dataItem.key === key) {
     return callback(dataItem.data);
   }
-  for (const elif of elseIfBranches) {
-    if (elif instanceof ElseIfLetBranch) {
-      if (dataItem.key === elif.key) {
-        return elif.callback(dataItem.data);
+  if (elseIfBranches !== undefined) {
+    for (const elif of elseIfBranches) {
+      if (elif instanceof ElseIfLetBranch) {
+        if (elif.shouldFire()) {
+          return elif.runCallback();
+        }
       }
-    }
-    else if (elif.shouldFire) {
-      return elif.callback();
+      else if (elif.shouldFire) {
+        return elif.callback();
+      }
     }
   }
   return elseFunc?.callback()!;
@@ -175,12 +199,13 @@ export function else_if_let<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   ReturnType = void,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 >(
+  dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   key: K,
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
 ): ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
-  return new ElseIfLetBranch(key, callback);
+  return new ElseIfLetBranch(dataItem, key, callback);
 }
 
 export function exhaustive_match<
