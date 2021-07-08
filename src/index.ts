@@ -34,7 +34,6 @@ class Direction extends SumTypeEnum<
 
 
 const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [12, "Some description is here"]);
-const temp = value.data
 const otherValue: Matchable<Direction> = (new Direction()).of("UP", [14, -55]);
 
 const complexValue = (new Result<number>()).of("COMPLEX", {

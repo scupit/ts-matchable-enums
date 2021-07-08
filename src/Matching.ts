@@ -58,10 +58,6 @@ export abstract class SumTypeEnum<
   ParamMap extends EnumKeyMap<E>,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 > {
-  // As the name says, this is just a placeholder name so that the ParamMap type can be referenced
-  // per instance from outside
-  public readonly _paramMapTypePlaceholder!: ParamMap;
-
   // Same as above, necessary for referencing the type. May also help with generating data later.
   public readonly abstract enumInstance: E;
 
@@ -90,13 +86,24 @@ class KnownKeyMatchable<
 
 // TODO: Make an Inferrer for enum instance and ParamMap types.
 
+type SumTypeEnumInferrer = any extends SumTypeEnum<infer E, infer ParamMap, infer NarrowedParamMap>
+  ? SumTypeEnum<E, ParamMap, NarrowedParamMap>
+  : never
+
+type EnumTypeInferrer<T> = T extends SumTypeEnum<infer E, infer _, infer _>
+  ? E
+  : never;
+
 // Wrap an SumTypeEnum type in function params or return type. This allows a matchable enum variant
 // to be passed around and matched safely.
 export type Matchable<
-  U extends any extends SumTypeEnum<infer E, infer ParamMap, infer NarrowedParamMap>
-    ? SumTypeEnum<E, ParamMap, NarrowedParamMap>
+  U extends SumTypeEnumInferrer = SumTypeEnumInferrer
+> = KnownKeyMatchable<
+  EnumTypeInferrer<U>,
+  U extends SumTypeEnum<infer E, infer ParamMap, infer NarrowedParamMap>
+    ? ParamMap
     : never
-> = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
+>;
 
 class ElseIfLetBranch<
   K extends keyof NarrowedParamMap,
