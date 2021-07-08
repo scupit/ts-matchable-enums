@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, UnknownKeyMatchable, else_if_let, else_if, if_branch } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -6,7 +6,7 @@ enum E_Result {
   NONE
 }
 
-class Result<T> extends UnknownKeyMatchable<
+class Result<T> extends SumTypeEnum<
   typeof E_Result,
   {
     SOME: [T, string],
@@ -22,7 +22,7 @@ enum E_Direction {
   DOWN
 }
 
-class Direction extends UnknownKeyMatchable<
+class Direction extends SumTypeEnum<
   typeof E_Direction,
   {
     UP: [number, number],
@@ -33,7 +33,8 @@ class Direction extends UnknownKeyMatchable<
 }
 
 
-const value = (new Result<number>()).of("SOME", [12, "Some description is here"]);
+const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [12, "Some description is here"]);
+const temp = value.data
 const otherValue: Matchable<Direction> = (new Direction()).of("UP", [14, -55]);
 
 const complexValue = (new Result<number>()).of("COMPLEX", {

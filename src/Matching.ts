@@ -53,7 +53,7 @@ type RealMatcherFunctionMap<
     : never;
 } & { ELSE(): ReturnType })
 
-export abstract class UnknownKeyMatchable<
+export abstract class SumTypeEnum<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
@@ -74,6 +74,7 @@ export abstract class UnknownKeyMatchable<
 }
 
 // Matchable item with key known by the compiler depending on which function branch is selected.
+// This is essentially the "variant instance" of a SumTypeEnum.
 class KnownKeyMatchable<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
@@ -87,11 +88,13 @@ class KnownKeyMatchable<
   ) { }
 }
 
-// Wrap an UnknownKeyMatchable type in function params or return type. This allows a matchable enum variant
+// TODO: Make an Inferrer for enum instance and ParamMap types.
+
+// Wrap an SumTypeEnum type in function params or return type. This allows a matchable enum variant
 // to be passed around and matched safely.
 export type Matchable<
-  U extends any extends UnknownKeyMatchable<infer E, infer ParamMap, infer NarrowedParamMap>
-    ? UnknownKeyMatchable<E, ParamMap, NarrowedParamMap>
+  U extends any extends SumTypeEnum<infer E, infer ParamMap, infer NarrowedParamMap>
+    ? SumTypeEnum<E, ParamMap, NarrowedParamMap>
     : never
 > = KnownKeyMatchable<U["enumInstance"], U["_paramMapTypePlaceholder"]>;
 
@@ -133,6 +136,9 @@ class ElseBranch<ReturnType> {
   ) { }
 }
 
+// Used for inferring the internal generic types for else_if_let branches.
+// When combined with variadic tuples, this allows an "infinite" number of else-if
+// branch expressions to be typed individually.
 type ElifLetInferrer<ReturnType> = any extends ElseIfLetBranch<
   infer K,
   infer E,
@@ -145,30 +151,38 @@ type ElifLetInferrer<ReturnType> = any extends ElseIfLetBranch<
     ? ElseIfBranch<ReturnType>
     : never;
 
+// The list of ways the else-if branches can be represented. ElifLetInferrer
+// deduces whether the branch is an else_if_let or a normal else_if_branch.
 type ElifBranchParamTypes<ReturnType> =
   [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]]
   | ElifLetInferrer<ReturnType>
-  | [ ]
+  | [ ];
 
+// Normal 'if' control flow which can also be used as an expression. The return type is type safe,
+// meaning that it is ReturnType | undefined when an else branch is not given. This is because
+// the else branch is the only one guaranteed to run, and therefore is the only one that can
+// guarantee a return.
 export function if_branch<
   ReturnType = void,
   ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
+  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>,
 >(
   shouldRun: boolean,
   callback: () => ReturnType,
   elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
-): ElseFuncType extends undefined
-    ? ReturnType | undefined
+): ElseFuncType extends void
+    ? ReturnType | void
     : ReturnType
 {
   if (shouldRun) {
     return callback();
   }
-  return doStarterBranchBody(elseIfBranches, elseFunc);
+  return runOtherBranches(elseIfBranches, elseFunc);
 }
 
+// "if let control flow". Only runs when the Key matches the variant type. Same expression rules
+// as the normal if_branch above.
 export function if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
@@ -183,17 +197,18 @@ export function if_let<
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
   elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
-): ElseFuncType extends undefined
-    ? ReturnType | undefined
+): ElseFuncType extends void
+    ? ReturnType | void
     : ReturnType
 {
   if (dataItem.key === key) {
     return callback(dataItem.data);
   }
-  return doStarterBranchBody(elseIfBranches, elseFunc);
+  return runOtherBranches(elseIfBranches, elseFunc);
 }
 
-function doStarterBranchBody<
+// Runs the branches following if_branch and if_let.
+function runOtherBranches<
   ReturnType,
   ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
   TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
@@ -222,6 +237,7 @@ export function else_branch<ReturnType> (
   return new ElseBranch<ReturnType>(callback);
 }
 
+// Normal else-if control flow. Generates the else-if branches for if_let and else_if.
 export function else_if<ReturnType> (
   shouldFire: boolean,
   callback: () => ReturnType
@@ -229,6 +245,7 @@ export function else_if<ReturnType> (
   return new ElseIfBranch(shouldFire, callback);
 }
 
+// Same matching rules as if_let. Generated else-if-let branches just like else-if above.
 export function else_if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
@@ -243,6 +260,9 @@ export function else_if_let<
   return new ElseIfLetBranch(dataItem, key, callback);
 }
 
+// Essentially a switch case where each case is an if_let. This is type safe and exhaustive. The compiler
+// will issue an error if not all variants of a SumTypeEnum are matched. Therefore when an ELSE branch is
+// not present, all variants of a SumTypeEnum must be matched explicitly.
 export function exhaustive_match<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
