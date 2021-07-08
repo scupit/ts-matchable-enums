@@ -54,6 +54,7 @@ const tempItem = exhaustive_match(value, {
       ([num, _]) => num > 0,
       // ([num, desc]) => `Matched guarded num > 0 (num is ${num})`
       ([num, desc]) => num
+      // ([num, desc]) => { }
     ),
     guarded_branch(
       ([num, _]) => num < 0,
@@ -69,19 +70,25 @@ const tempItem = exhaustive_match(value, {
   ELSE: () => "don't care"
 });
 
-const t: string | boolean | number | readonly [number, number] = tempItem;
+// const t: string | boolean | number | readonly [number, number] = tempItem;
+// const t: string | boolean | number | readonly [number, number] = tempItem;
+let t: typeof tempItem;
 
 console.warn(tempItem)
 
 function tryThis(m: Matchable<Result<number>>) {
-  return exhaustive_match(m, {
+  return partial_match(m, {
     SOME: [
       guarded_branch(() => true,
         ([n]) => n
+        // ([n]) => { }
       ),
-      match_rest(() => ['name'])
+      guarded_branch(() => true,
+        ([n]) => "something" as const
+      ),
+      // match_rest(() => ['name'] as const)
     ],
-    ELSE: () => false
+    // ELSE: () => false
   })
 }
 
@@ -179,10 +186,19 @@ console.log(returnedVal);
 doSomething(value);
 doSomething((new Result<number>()).of("NONE", void 0))
 
-exhaustive_match(returnSomething(200), {
-  SOME([num, desc]) {
-    console.log(`returned ${num} with description ${desc}`)
-  },
+partial_match(returnSomething(202), {
+  // SOME([num, desc]) {
+  //   console.log(`returned ${num} with description ${desc}`)
+  // },
+  SOME: [
+    guarded_branch(([num, _]) => num > 200,
+    ([num, desc]) => {
+      console.log(`Got ${num} (> 200) with description "${desc}"`)
+    }),
+    match_rest(([num, desc]) => {
+      console.log(`Got ${num} (not > 200) with description "${desc}"`)
+    })
+  ],
   NONE() {
     console.log("Got nothing, sadly");
   },

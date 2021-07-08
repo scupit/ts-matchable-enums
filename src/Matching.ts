@@ -486,43 +486,27 @@ type PartialGuardedElseIfLetBranchReturnTypeInferrer<
       ? ReturnType
       : never;
 
-type VariadicInferrer<
-  K extends keyof NarrowedParamMap,
-  E extends EnumType,
-  ParamMap extends EnumKeyMap<E>,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
-  T extends [...PartialGuardedElseIfLetBranch<K, E, ParamMap, unknown, NarrowedParamMap>[]]
-> = [...PartialGuardedElseIfLetBranchReturnTypeInferrer<K, E, ParamMap, NarrowedParamMap>[]] & {length: T["length"]}
-// [
-//   ...PartialGuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>[],
-//   PartialReceivingElseBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
-// ]
-
-type ExtractBeginning<
-  T extends any[],
-  V extends any,
-  A extends [...T, V]
-> = [...T];
-
 type ExhaustiveMatcherReturnTypeMap<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
-  // MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
   MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
 > = MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
       ? {
         [key in keyof MatcherType]: MatcherType[key] extends ((body: infer T) => infer R)
           ? R
           : key extends keyof NarrowedParamMap
-            ?  MatcherType[key] extends [
-              // Don't think this is going to work. RT is probably just one type
-              ...PartialGuardedElseIfLetBranch<key, E, ParamMap, infer RT, NarrowedParamMap>[],
-              PartialReceivingElseBranch<key, E, ParamMap, infer R, NarrowedParamMap>
-            ]
-              ? RT | R
+            ? MatcherType[key] extends [PartialReceivingElseBranch<key, E, ParamMap, infer R, NarrowedParamMap>]
+              ? R
+              : MatcherType[key] extends [
+                  // Holy, I can't believe this works. TypeScript is insane, and whoever wrote this
+                  // type system needs a hug.
+                  ...PartialGuardedElseIfLetBranch<key, E, ParamMap, infer VariadicReturnTypeUnion, NarrowedParamMap>[],
+                  PartialReceivingElseBranch<key, E, ParamMap, infer R, NarrowedParamMap>
+                ]
+                ? VariadicReturnTypeUnion | R
+                :never
               : never
-            : never
       }
       : never
 
@@ -530,9 +514,57 @@ type ExhaustiveMatcherReturnTypeUnion<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
-  // MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
   MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
-> = ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>[keyof ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>];
+> = ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>[
+      keyof ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>
+    ];
+
+type PartialMatcherReturnTypeMap<
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
+  // MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+  MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+> = MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+      ? ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>
+        // Now for the optional types
+      : { [key in keyof MatcherType]: MatcherType[key] extends undefined
+            ? void
+            : MatcherType[key] extends ((body: infer T) => infer R)
+              ? R
+              : key extends keyof NarrowedParamMap
+                ? MatcherType[key] extends [PartialGuardedElseIfLetBranch<key, E, ParamMap, infer R, NarrowedParamMap>]
+                    ? R
+                    // This one and the next one are the same as 
+                    : MatcherType[key] extends [PartialReceivingElseBranch<key, E, ParamMap, infer R, NarrowedParamMap>]
+                      ? R
+                      : MatcherType[key] extends [
+                          ...PartialGuardedElseIfLetBranch<key, E, ParamMap, infer VariadicReturnTypeUnion, NarrowedParamMap>[],
+                          PartialReceivingElseBranch<key, E, ParamMap, infer R, NarrowedParamMap>
+                        ]
+                          ? R | VariadicReturnTypeUnion
+                          : MatcherType[key] extends [
+                              PartialGuardedElseIfLetBranch<key, E, ParamMap, infer R, NarrowedParamMap>,
+                              ...PartialGuardedElseIfLetBranch<key, E, ParamMap, infer VariadicReturnTypeUnion, NarrowedParamMap>[]
+                          ]
+                            ? R | VariadicReturnTypeUnion
+                            : never
+                : never
+        }
+
+type PartialMatcherReturnTypeUnion<
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
+  // MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+  MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+> = MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+      ? PartialMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>[
+          keyof PartialMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>
+        ]
+      : PartialMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>[
+          keyof PartialMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>
+        ] | undefined;
 
 // Essentially a switch case where each case is an if_let. This is type safe and exhaustive. The compiler
 // will issue an error if not all variants of a SumTypeEnum are matched. Therefore when an ELSE branch is
@@ -598,9 +630,7 @@ export function partial_match<
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   matcherFuncMap: MatcherType
-): MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, ReturnType, NarrowedParamMap>
-  ? ReturnType
-  : ReturnType | void
+): PartialMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>
 {
   const matchedKey = dataItem.key;
 
@@ -608,14 +638,14 @@ export function partial_match<
     const matcher = matcherFuncMap[matchedKey];
 
     if (typeof matcher === "function") {
-      return matcher(dataItem.data);
+      return matcher(dataItem.data) as PartialMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>;
     }
     else if (Array.isArray(matcher)) {
       return evaluatePartialMultimatchBranch(
         matchedKey,
         dataItem,
         matcher as PartialMultiMatchBranchParam<typeof matchedKey, E, ParamMap, ReturnType, NarrowedParamMap> 
-      );
+      ) as PartialMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>;
     }
     else {
       // Shouldn't ever be able to happen
@@ -623,12 +653,9 @@ export function partial_match<
     }
   }
   else if ("ELSE" in matcherFuncMap){
-    return matcherFuncMap["ELSE"]!();
+    return matcherFuncMap["ELSE"]!() as PartialMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>;
   }
-  else {
-    // Shouldn't ever be able to happen.
-    throw ReferenceError(`Somehow no functions at all were matched against key ${matchedKey}. I have no idea how that is even possible.`);
-  }
+  return void 0 as PartialMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>;
 }
 
 function separate<T extends any[], V>(items: [...T, V]): {middle: T, last: V} {
