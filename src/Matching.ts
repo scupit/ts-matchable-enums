@@ -46,12 +46,10 @@ type RealMatcherFunctionMap<
   M extends EnumKeyMap<E>,
   ReturnType = void,
   BodyTypeMap extends NarrowedEnumKeyMap<E, M> = NarrowedEnumKeyMap<E, M>
-> = AllRequiredMatcherFunctionMap<E, M, ReturnType, BodyTypeMap> | ({
-  [key in keyof BodyTypeMap]?: BodyTypeMap[key] extends DataWrapper<infer T>
-    // This is the type conversion function
-    ? (body: T) => ReturnType
-    : never;
-} & { ELSE(): ReturnType })
+> = AllRequiredMatcherFunctionMap<E, M, ReturnType, BodyTypeMap> | (
+  Partial<AllRequiredMatcherFunctionMap<E, M, ReturnType, BodyTypeMap>>
+  & { ELSE(): ReturnType }
+)
 
 export abstract class SumTypeEnum<
   E extends EnumType,
@@ -327,6 +325,131 @@ export function guarded_else_if_let<
   return new GuardedElseIfLetBranch(guardFunc, dataItem, key, callback);
 }
 
+class PartialGuardedElseIfLetBranch<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> {
+  constructor(
+    private readonly guardFunc: AllRequiredMatcherFunctionMap<E, ParamMap, boolean, NarrowedParamMap>[K],
+    private readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+  ) { }
+
+  toFullGuardedElseIfLetBranch(
+    key: K,
+    dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap, K>
+  ): GuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+    return new GuardedElseIfLetBranch(
+      this.guardFunc,
+      dataItemMatching,
+      key,
+      this.callback 
+    );
+  }
+}
+
+export function guarded_branch<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
+>(
+  guardFunc: AllRequiredMatcherFunctionMap<E, ParamMap, boolean, NarrowedParamMap>[K],
+  callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+): PartialGuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+  return new PartialGuardedElseIfLetBranch(guardFunc, callback);
+}
+
+class ReceivingElseBranch<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType = void,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> {
+  constructor(
+    private readonly key: K,
+    private readonly dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap, K>,
+    private readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+  ) { }
+
+  runCallback(): ReturnType {
+    if (this.key !== this.dataItemMatching.key) {
+      throw TypeError(`Tried to run a callback on a matchable item (key ${this.dataItemMatching.key}) which does not match key ${this.key}`)
+    }
+    return this.callback(this.dataItemMatching.data);
+  }
+}
+
+class PartialReceivingElseBranch<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> {
+  constructor(
+    private readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+  ) { }
+
+  toFullReceivingElseBranch(
+    key: K,
+    dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap, K>
+  ): ReceivingElseBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+    return new ReceivingElseBranch(key, dataItemMatching, this.callback);
+  }
+}
+
+export function match_rest<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+>(
+  callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+): PartialReceivingElseBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+  return new PartialReceivingElseBranch(callback);
+}
+
+type MultiMatchBranchParam<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> = [
+  PartialGuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>,
+  ...PartialGuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>[],
+  PartialReceivingElseBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
+]
+
+type AllRequiredBranchEvaluationMap<
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  BodyTypeMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> = {
+  [key in keyof BodyTypeMap]: BodyTypeMap[key] extends DataWrapper<infer T>
+    ? ((body: T) => ReturnType) | MultiMatchBranchParam<key, E, ParamMap, ReturnType, BodyTypeMap>
+    : never
+  // [key in keyof BodyTypeMap]: BodyTypeMap[key] extends DataWrapper<infer T>
+  //   ? MultiMatchBranchParam<key, E, ParamMap, ReturnType, BodyTypeMap>
+  //   : never
+}
+
+type MultiMatchableBranchEvaluationMap<
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType = void,
+  BodyTypeMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> = AllRequiredBranchEvaluationMap<E, ParamMap, ReturnType, BodyTypeMap> | (
+  Partial<AllRequiredBranchEvaluationMap<E, ParamMap, ReturnType, BodyTypeMap>> 
+  & { ELSE(): ReturnType })
+
 // Essentially a switch case where each case is an if_let. This is type safe and exhaustive. The compiler
 // will issue an error if not all variants of a SumTypeEnum are matched. Therefore when an ELSE branch is
 // not present, all variants of a SumTypeEnum must be matched explicitly.
@@ -334,18 +457,25 @@ export function exhaustive_match<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   ReturnType = void,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
-  matcherFuncMap: RealMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>
+  matcherFuncMap: MultiMatchableBranchEvaluationMap<E, ParamMap, ReturnType, NarrowedParamMap>
 ): ReturnType {
   const matchedKey = dataItem.key;
 
   if (matchedKey in matcherFuncMap) {
-    const matcherFunc = matcherFuncMap[dataItem.key];
+    const matcher = matcherFuncMap[dataItem.key];
 
-    if (typeof matcherFunc === "function") {
-      return matcherFunc(dataItem.data);
+    if (typeof matcher === "function") {
+      return matcher(dataItem.data);
+    }
+    else if (Array.isArray(matcher)) {
+      return evaluateMultimatchBranch(
+        dataItem.key,
+        dataItem,
+        matcher as MultiMatchBranchParam<typeof matchedKey, E, ParamMap, ReturnType, NarrowedParamMap>
+      );
     }
     else {
       // Shouldn't ever be able to happen.
@@ -359,4 +489,45 @@ export function exhaustive_match<
     // Shouldn't ever be able to happen.
     throw ReferenceError(`Somehow no functions at all were matched against key ${matchedKey}. I have no idea how that is even possible.`);
   }
+}
+
+function separate<T extends any[], V>(items: [...T, V]): {middle: T, last: V} {
+  // items = 
+  return {
+    middle: items.slice(0, items.length - 1) as T,
+    last: items[items.length - 1]
+  }
+}
+
+function evaluateMultimatchBranch<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+>(
+  key: K,
+  dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap, K>,
+  branchEvaluators: MultiMatchBranchParam<K, E, ParamMap, ReturnType, NarrowedParamMap>
+): ReturnType {
+  const [partialInitialBranch, ...rest] = branchEvaluators;
+  const initialBranch = partialInitialBranch.toFullGuardedElseIfLetBranch(key, dataItemMatching);
+
+  if (initialBranch.shouldFire()) {
+    return initialBranch.runCallback();
+  }
+
+  const {
+    middle: partialMiddleBranches,
+    last: partialEndBranch
+  } = separate(rest);
+
+  for (const partialMiddleBranch of partialMiddleBranches) {
+    const middleBranch = partialMiddleBranch.toFullGuardedElseIfLetBranch(key, dataItemMatching);
+    if (middleBranch.shouldFire()) {
+      return middleBranch.runCallback();
+    }
+  }
+
+  return partialEndBranch.toFullReceivingElseBranch(key, dataItemMatching).runCallback();
 }

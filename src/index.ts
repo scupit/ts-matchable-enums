@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let, guarded_if_let } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let, guarded_if_let, guarded_branch, match_rest } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -33,13 +33,33 @@ class Direction extends SumTypeEnum<
 }
 
 
-const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [13, "Some description is here"]);
+const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [0, "Some description is here"]);
 const otherValue: Matchable<Direction> = (new Direction()).of("UP", [14, -55]);
 
 const complexValue = (new Result<number>()).of("COMPLEX", {
   data: "Nice, this is the complex data",
   other: 400
 });
+
+const tempItem: string = exhaustive_match(value, {
+  SOME: [
+    guarded_branch(
+      ([num, _]) => num > 0,
+      ([num, desc]) => `Matched guarded num > 0 (num is ${num})`
+    ),
+    guarded_branch(
+      ([num, _]) => num < 0,
+      ([num, desc]) => `Matched guarded num < 0 (num is ${num})`
+    ),
+    match_rest(
+      () => "Matched the else in mini matcher",
+    )
+  ],
+  COMPLEX: () => "matched complex",
+  ELSE: () => "don't care"
+});
+
+console.warn(tempItem)
 
 guarded_if_let(complexValue, "COMPLEX", ({other}) => other >= 400, ({other}) => {
   console.log(`other is >= 400 (is ${other})`);
@@ -95,7 +115,7 @@ console.log(normalIfResult);
 // },
 // else_branch(() => "nothing matched"));
 
-function doSomething(res: Matchable<Result<number>>) {
+function doSomething(res: Matchable<Result<number>>): void {
   exhaustive_match(res, {
     SOME([num, description]) {
       console.log(`Num ${num} has the description: "${description}"`)
@@ -108,17 +128,6 @@ function doSomething(res: Matchable<Result<number>>) {
     //   console.log("Nothing")
     // }
   })
-}
-
-function useComplex(n: Matchable<Result<number>>): void {
-  exhaustive_match(n, {
-    COMPLEX({data}) {
-      console.log(`Matched complex data "${data}"`);
-    },
-    ELSE() {
-      console.log("Matched very boring data")
-    }
-  });
 }
 
 function returnSomething<T extends number>(n: T): Matchable<Result<T>> {
@@ -140,9 +149,6 @@ const returnedVal: string = exhaustive_match(value, {
   }
 });
 
-// Mini tests
-
-useComplex(complexValue);
 console.log(returnedVal);
 doSomething(value);
 doSomething((new Result<number>()).of("NONE", void 0))
