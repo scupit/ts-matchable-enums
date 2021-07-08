@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let, guarded_if_let, guarded_branch, match_rest } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let, guarded_if_let, guarded_branch, match_rest, partial_match } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -41,18 +41,23 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
   other: 400
 });
 
-const tempItem: string = exhaustive_match(value, {
+
+
+// const tempItem: string = exhaustive_match(value, {
+// exhaustive_match(value, {
+const tempItem: string = partial_match(value, {
+// partial_match(value, {
   SOME: [
-    guarded_branch(
-      ([num, _]) => num > 0,
-      ([num, desc]) => `Matched guarded num > 0 (num is ${num})`
-    ),
+    // guarded_branch(
+    //   ([num, _]) => num > 0,
+    //   ([num, desc]) => `Matched guarded num > 0 (num is ${num})`
+    // ),
     guarded_branch(
       ([num, _]) => num < 0,
       ([num, desc]) => `Matched guarded num < 0 (num is ${num})`
     ),
     match_rest(
-      () => "Matched the else in mini matcher",
+      () => "Matched the else in mini matcher"
     )
   ],
   COMPLEX: () => "matched complex",
