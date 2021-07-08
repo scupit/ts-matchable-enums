@@ -44,27 +44,48 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
 
 
 // const tempItem: string = exhaustive_match(value, {
+const tempItem = exhaustive_match(value, {
 // exhaustive_match(value, {
-const tempItem: string = partial_match(value, {
+// const tempItem: string = partial_match(value, {
+// const tempItem = partial_match(value, {
 // partial_match(value, {
   SOME: [
-    // guarded_branch(
-    //   ([num, _]) => num > 0,
-    //   ([num, desc]) => `Matched guarded num > 0 (num is ${num})`
-    // ),
+    guarded_branch(
+      ([num, _]) => num > 0,
+      // ([num, desc]) => `Matched guarded num > 0 (num is ${num})`
+      ([num, desc]) => num
+    ),
     guarded_branch(
       ([num, _]) => num < 0,
-      ([num, desc]) => `Matched guarded num < 0 (num is ${num})`
+      // ([num, desc]) => `Matched guarded num < 0 (num is ${num})`
+      ([num, desc]) => false
     ),
     match_rest(
-      () => "Matched the else in mini matcher"
+      // ([_, __]) => "Matched the else in mini matcher"
+      ([_, __]) => [12, 14] as const
     )
   ],
   COMPLEX: () => "matched complex",
   ELSE: () => "don't care"
 });
 
+const t: string | boolean | number | readonly [number, number] = tempItem;
+
 console.warn(tempItem)
+
+function tryThis(m: Matchable<Result<number>>) {
+  return exhaustive_match(m, {
+    SOME: [
+      guarded_branch(() => true,
+        ([n]) => n
+      ),
+      match_rest(() => ['name'])
+    ],
+    ELSE: () => false
+  })
+}
+
+type v = ReturnType<typeof tryThis>;
 
 guarded_if_let(complexValue, "COMPLEX", ({other}) => other >= 400, ({other}) => {
   console.log(`other is >= 400 (is ${other})`);

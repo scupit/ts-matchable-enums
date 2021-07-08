@@ -1,3 +1,4 @@
+import { RuleTester } from "eslint";
 import { EnumKeyTypes, EnumType } from "./EnumTyping";
 
 // Specifying all these types at once provides the ability to auto generate conversion
@@ -476,31 +477,90 @@ type MultiMatchableBranchEvaluationMap<
     & { ELSE(): ReturnType }
   )
 
+type PartialGuardedElseIfLetBranchReturnTypeInferrer<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>
+> = any extends PartialGuardedElseIfLetBranch<K, E, ParamMap, infer ReturnType, NarrowedParamMap>
+      ? ReturnType
+      : never;
+
+type VariadicInferrer<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
+  T extends [...PartialGuardedElseIfLetBranch<K, E, ParamMap, unknown, NarrowedParamMap>[]]
+> = [...PartialGuardedElseIfLetBranchReturnTypeInferrer<K, E, ParamMap, NarrowedParamMap>[]] & {length: T["length"]}
+// [
+//   ...PartialGuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>[],
+//   PartialReceivingElseBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
+// ]
+
+type ExtractBeginning<
+  T extends any[],
+  V extends any,
+  A extends [...T, V]
+> = [...T];
+
+type ExhaustiveMatcherReturnTypeMap<
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
+  // MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+  MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+> = MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+      ? {
+        [key in keyof MatcherType]: MatcherType[key] extends ((body: infer T) => infer R)
+          ? R
+          : key extends keyof NarrowedParamMap
+            ?  MatcherType[key] extends [
+              // Don't think this is going to work. RT is probably just one type
+              ...PartialGuardedElseIfLetBranch<key, E, ParamMap, infer RT, NarrowedParamMap>[],
+              PartialReceivingElseBranch<key, E, ParamMap, infer R, NarrowedParamMap>
+            ]
+              ? RT | R
+              : never
+            : never
+      }
+      : never
+
+type ExhaustiveMatcherReturnTypeUnion<
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>,
+  // MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+  MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+> = ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>[keyof ExhaustiveMatcherReturnTypeMap<E, ParamMap, NarrowedParamMap, MatcherType>];
+
 // Essentially a switch case where each case is an if_let. This is type safe and exhaustive. The compiler
 // will issue an error if not all variants of a SumTypeEnum are matched. Therefore when an ELSE branch is
 // not present, all variants of a SumTypeEnum must be matched explicitly.
 export function exhaustive_match<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
+  MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown extends ReturnType ? unknown : ReturnType, NarrowedParamMap>
+    = MultiMatchableBranchEvaluationMap<E, ParamMap, unknown extends ReturnType ? unknown : ReturnType, NarrowedParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
-  matcherFuncMap: MultiMatchableBranchEvaluationMap<E, ParamMap, ReturnType, NarrowedParamMap>
-): ReturnType {
+  matcherFuncMap: MatcherType
+): ExhaustiveMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType> {
   const matchedKey = dataItem.key;
 
   if (matchedKey in matcherFuncMap) {
     const matcher = matcherFuncMap[dataItem.key];
 
     if (typeof matcher === "function") {
-      return matcher(dataItem.data);
+      return matcher(dataItem.data) as ExhaustiveMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>;
     }
     else if (Array.isArray(matcher)) {
       return evaluateMultimatchBranch(
         dataItem.key,
         dataItem,
-        matcher as ExhaustiveMultiMatchBranchParam<typeof matchedKey, E, ParamMap, ReturnType, NarrowedParamMap>
+        matcher as ExhaustiveMultiMatchBranchParam<typeof matchedKey, E, ParamMap, ExhaustiveMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>, NarrowedParamMap>
       );
     }
     else {
@@ -509,7 +569,7 @@ export function exhaustive_match<
     }
   }
   else if ("ELSE" in matcherFuncMap){
-    return matcherFuncMap["ELSE"]();
+    return matcherFuncMap["ELSE"]() as ExhaustiveMatcherReturnTypeUnion<E, ParamMap, NarrowedParamMap, MatcherType>;
   }
   else {
     // Shouldn't ever be able to happen.
@@ -517,10 +577,21 @@ export function exhaustive_match<
   }
 }
 
+/*
+  partial_match works the same as exhaustive_match. However, it is not required to be exhaustive in contexts where
+  its return value is either unused or is allowed to be undefined. This means that partial_match is required to
+  be exhaustive when its return value is explicitly not allowed to be undefined.
+  
+  There are two situations where partial_match is required to be exhaustive:
+    - The match result is assigned to a variable whose type has been explicity defined and does not include undefined.
+    - The match result is returned from a function whose return type is explicitly defined and does not include undefined.
+  
+  Essentially partial_match must be exhaustive when its return type is used and explicitly required
+*/
 export function partial_match<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
   MatcherType extends AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, ReturnType, NarrowedParamMap>
     = AllOptionalMultiMatchableBranchEvaluationMap<E, ParamMap, ReturnType, NarrowedParamMap>
