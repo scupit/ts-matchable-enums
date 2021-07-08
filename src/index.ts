@@ -1,4 +1,4 @@
-import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch } from "./Matching";
+import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let } from "./Matching";
 
 enum E_Result {
   SOME,
@@ -33,7 +33,7 @@ class Direction extends SumTypeEnum<
 }
 
 
-const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [12, "Some description is here"]);
+const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [13, "Some description is here"]);
 const otherValue: Matchable<Direction> = (new Direction()).of("UP", [14, -55]);
 
 const complexValue = (new Result<number>()).of("COMPLEX", {
@@ -46,6 +46,9 @@ const conditionalExpressionResult: string = if_let(value, "NONE", () => {
   return "NONE matched"
 },
 [
+  guarded_else_if_let(value, "SOME", ([num, _]) => num > 12, ([num, desc]) => {
+    return `Matched guarded some value where num > 12 (num === ${num})`;
+  }),
   else_if_let(complexValue, "SOME", ([n, str]) => {
     return `Matched SOME with num ${n} and description ${str}`;
   }),

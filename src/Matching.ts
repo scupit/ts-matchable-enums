@@ -84,8 +84,6 @@ class KnownKeyMatchable<
   ) { }
 }
 
-// TODO: Make an Inferrer for enum instance and ParamMap types.
-
 type SumTypeEnumInferrer = any extends SumTypeEnum<infer E, infer ParamMap, infer NarrowedParamMap>
   ? SumTypeEnum<E, ParamMap, NarrowedParamMap>
   : never
@@ -110,7 +108,7 @@ class ElseIfLetBranch<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
   ReturnType = void,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 > {
   constructor(
     public readonly dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
@@ -127,6 +125,27 @@ class ElseIfLetBranch<
 
   public shouldFire(): boolean {
     return this.dataItemMatching.key === this.key;
+  }
+}
+
+class GuardedElseIfLetBranch<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType = void,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+> extends ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+  constructor(
+    private readonly guardFunc: AllRequiredMatcherFunctionMap<E, ParamMap, boolean, NarrowedParamMap>[K],
+    dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
+    key: K,
+    callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+  ) {
+    super(dataItemMatching, key, callback);
+  }
+
+  public override shouldFire(): boolean {
+    return super.shouldFire() && this.guardFunc(this.dataItemMatching.data)
   }
 }
 
@@ -265,6 +284,21 @@ export function else_if_let<
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
 ): ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
   return new ElseIfLetBranch(dataItem, key, callback);
+}
+
+export function guarded_else_if_let<
+  K extends keyof NarrowedParamMap,
+  E extends EnumType,
+  ParamMap extends EnumKeyMap<E>,
+  ReturnType = void,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
+>(
+  dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
+  key: K,
+  guardFunc: AllRequiredMatcherFunctionMap<E, ParamMap, boolean, NarrowedParamMap>[K],
+  callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+): GuardedElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+  return new GuardedElseIfLetBranch(guardFunc, dataItem, key, callback);
 }
 
 // Essentially a switch case where each case is an if_let. This is type safe and exhaustive. The compiler
