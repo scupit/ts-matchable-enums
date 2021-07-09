@@ -1,5 +1,6 @@
 import { exhaustive_match, else_branch, if_let, Matchable, SumTypeEnum, else_if_let, else_if, if_branch, guarded_else_if_let, guarded_if_let, guarded_branch, match_rest, partial_match } from "./Matching";
 
+// Start Complex result sum type enum definition
 enum E_Result {
   SOME,
   COMPLEX,
@@ -16,6 +17,7 @@ class Result<T> extends SumTypeEnum<
 > {
   public override readonly enumInstance = E_Result;
 }
+// End Complex result sum type enum definition
 
 enum E_Direction {
   UP,
@@ -32,7 +34,6 @@ class Direction extends SumTypeEnum<
   public override readonly enumInstance = E_Direction
 }
 
-
 const value: Matchable<Result<number>> = (new Result<number>()).of("SOME", [0, "Some description is here"]);
 const otherValue: Matchable<Direction> = (new Direction()).of("UP", [14, -55]);
 
@@ -40,8 +41,6 @@ const complexValue = (new Result<number>()).of("COMPLEX", {
   data: "Nice, this is the complex data",
   other: 400
 });
-
-
 
 // const tempItem: string = exhaustive_match(value, {
 const tempItem = exhaustive_match(value, {

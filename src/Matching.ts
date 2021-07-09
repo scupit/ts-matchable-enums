@@ -1,4 +1,3 @@
-import { RuleTester } from "eslint";
 import { EnumKeyTypes, EnumType } from "./EnumTyping";
 
 // Specifying all these types at once provides the ability to auto generate conversion
@@ -21,15 +20,6 @@ type NarrowedEnumKeyMap<
   T extends EnumKeyMap<E>
 > = Required<Omit<T, Exclude<keyof T, EnumKeyTypes<E>>>>
 
-type MapValueTypeUnion<
-  E extends EnumType,
-  M extends EnumKeyMap<E>
-> = {
-  [key in keyof NarrowedEnumKeyMap<E, M>]: NarrowedEnumKeyMap<E, M>[key] extends DataWrapper<infer T>
-    ? T
-    : never
-}
-
 type AllRequiredMatcherFunctionMap<
   E extends EnumType,
   M extends EnumKeyMap<E>,
@@ -42,16 +32,6 @@ type AllRequiredMatcherFunctionMap<
     : never;
 }
 
-type RealMatcherFunctionMap<
-  E extends EnumType,
-  M extends EnumKeyMap<E>,
-  ReturnType = void,
-  BodyTypeMap extends NarrowedEnumKeyMap<E, M> = NarrowedEnumKeyMap<E, M>
-> = AllRequiredMatcherFunctionMap<E, M, ReturnType, BodyTypeMap> | (
-  Partial<AllRequiredMatcherFunctionMap<E, M, ReturnType, BodyTypeMap>>
-  & { ELSE(): ReturnType }
-)
-
 export abstract class SumTypeEnum<
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
@@ -60,6 +40,7 @@ export abstract class SumTypeEnum<
   // Same as above, necessary for referencing the type. May also help with generating data later.
   public readonly abstract enumInstance: E;
 
+  // This is the function that creates the actual "Sum type enum instances".
   of<K extends keyof NarrowedParamMap>(
     key: K,
     data: NarrowedParamMap[K]
@@ -515,15 +496,6 @@ type MultiMatchableBranchEvaluationMap<
     Partial<AllRequiredMultiMatchableBranchEvaluationMap<E, ParamMap, ReturnType, BodyTypeMap>> 
     & { ELSE(): ReturnType }
   )
-
-type PartialGuardedElseIfLetBranchReturnTypeInferrer<
-  K extends keyof NarrowedParamMap,
-  E extends EnumType,
-  ParamMap extends EnumKeyMap<E>,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap>
-> = any extends PartialGuardedElseIfLetBranch<K, E, ParamMap, infer ReturnType, NarrowedParamMap>
-      ? ReturnType
-      : never;
 
 type ExhaustiveMatcherReturnTypeMap<
   E extends EnumType,
