@@ -33,7 +33,7 @@ type MapValueTypeUnion<
 type AllRequiredMatcherFunctionMap<
   E extends EnumType,
   M extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   BodyTypeMap extends NarrowedEnumKeyMap<E, M> = NarrowedEnumKeyMap<E, M>
 > = {
   [key in keyof BodyTypeMap]: BodyTypeMap[key] extends DataWrapper<infer T>
@@ -106,9 +106,13 @@ class ElseIfLetBranch<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 > {
+  // Acts as the discriminator between GuardedElseIfLetBranch. Necessary due to the way these
+  // similar branch types are inferenced.
+  readonly branchType = "else_if_let"
+
   constructor(
     public readonly dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
     public readonly key: K,
@@ -131,20 +135,31 @@ class GuardedElseIfLetBranch<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
-> extends ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap> {
+> {
+  // Acts as the discriminating key between ElseIfLetBranch. This is necessary for multi-branch type
+  // inference. GuardedElseIfLetBranch (this class) should really just extend ElseIfLetBranch, however
+  // I haven't found a way to make type inference work that way.
+  readonly branchType = "guarded_else_if_let"
+
   constructor(
     private readonly guardFunc: AllRequiredMatcherFunctionMap<E, ParamMap, boolean, NarrowedParamMap>[K],
-    dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
-    key: K,
-    callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
-  ) {
-    super(dataItemMatching, key, callback);
+    private readonly dataItemMatching: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
+    private readonly key: K,
+    private readonly callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K]
+  ) { }
+
+  public runCallback(): ReturnType {
+    if (this.key !== this.dataItemMatching.key) {
+      throw TypeError(`Tried to run a callback on a matchable item (key ${this.dataItemMatching.key}) which does not match key ${this.key}`)
+    }
+    return this.callback(this.dataItemMatching.data);
   }
 
-  public override shouldFire(): boolean {
-    return super.shouldFire() && this.guardFunc(this.dataItemMatching.data)
+  public shouldFire(): boolean {
+    return this.key === this.dataItemMatching.key
+      && this.guardFunc(this.dataItemMatching.data)
   }
 }
 
@@ -168,37 +183,60 @@ type ElifLetInferrer<ReturnType> = any extends ElseIfLetBranch<
   infer K,
   infer E,
   infer ParamMap,
-  infer R,
-  infer NarrowedParamMap
->
-  ? ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
-  : any extends ElseIfBranch<infer R>
-    ? ElseIfBranch<ReturnType>
-    : never;
+  ReturnType
+> | ElseIfBranch<ReturnType>
+  | GuardedElseIfLetBranch<infer Key, infer ET, infer P, ReturnType>
+  // ? ElseIfLetBranch<K, E, ParamMap, ReturnType, NarrowedParamMap>
+  ? GuardedElseIfLetBranch<Key, ET, P, ReturnType>
+    | ElseIfLetBranch<K, E, ParamMap, ReturnType>
+    | ElseIfBranch<ReturnType>
+  : never;
 
 // The list of ways the else-if branches can be represented. ElifLetInferrer
 // deduces whether the branch is an else_if_let or a normal else_if_branch.
 type ElifBranchParamTypes<ReturnType> =
-  [ElifLetInferrer<ReturnType>, ...ElifLetInferrer<ReturnType>[]]
+  [...ElifLetInferrer<ReturnType>[]]
   | ElifLetInferrer<ReturnType>
   | [ ];
+
+type HeadTailReturnType<
+  MainIfReturnType,
+  ElseFuncType extends ElseBranch<unknown> | undefined
+> = ElseFuncType extends ElseBranch<infer R>
+      ? R | MainIfReturnType
+      : MainIfReturnType | undefined
+
+type InferredBranchReturnType<
+  MainIfReturnType,
+  TypedElifBranchList extends ElifBranchParamTypes<unknown> | undefined,
+  ElseFuncType extends ElseBranch<unknown> | undefined
+> = HeadTailReturnType<MainIfReturnType, ElseFuncType> | (
+  TypedElifBranchList extends [ ]
+    ? never
+    : TypedElifBranchList extends ElifLetInferrer<infer R>
+      ? R
+      : TypedElifBranchList extends [
+        ...ElifLetInferrer<infer VariadicReturnTypeUnion>[]
+      ]
+        ? VariadicReturnTypeUnion
+        // ? never
+        : never
+)
 
 // Normal 'if' control flow which can also be used as an expression. The return type is type safe,
 // meaning that it is ReturnType | undefined when an else branch is not given. This is because
 // the else branch is the only one guaranteed to run, and therefore is the only one that can
 // guarantee a return.
 export function if_branch<
-  ReturnType = void,
-  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>,
+  ReturnType,
+  TypedElifBranchList extends ElifBranchParamTypes<unknown> | undefined,
+  ElseFuncType extends ElseBranch<unknown> | undefined
 >(
   shouldRun: boolean,
   callback: () => ReturnType,
   elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
-): ElseFuncType extends void
-    ? ReturnType | void
-    : ReturnType
+): InferredBranchReturnType<ReturnType, TypedElifBranchList, ElseFuncType>
 {
   if (shouldRun) {
     return callback();
@@ -211,10 +249,10 @@ export function guarded_if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
+  TypedElifBranchList extends ElifBranchParamTypes<unknown> | undefined,
+  ElseFuncType extends ElseBranch<unknown> | undefined,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
-  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   key: K,
@@ -222,9 +260,7 @@ export function guarded_if_let<
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
   elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
-): ElseFuncType extends void
-    ? ReturnType | void
-    : ReturnType
+): InferredBranchReturnType<ReturnType, TypedElifBranchList, ElseFuncType>
 {
   if (dataItem.key === key && guardFunc(dataItem.data)) {
     return callback(dataItem.data);
@@ -238,22 +274,20 @@ export function if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
-  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
-  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
+  ReturnType,
+  TypedElifBranchList extends ElifBranchParamTypes<unknown> | undefined,
+  ElseFuncType extends ElseBranch<unknown> | undefined,
+  NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   key: K,
   callback: AllRequiredMatcherFunctionMap<E, ParamMap, ReturnType, NarrowedParamMap>[K],
   elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
-): ElseFuncType extends void
-    ? ReturnType | void
-    : ReturnType
+): InferredBranchReturnType<ReturnType, TypedElifBranchList, ElseFuncType>
 {
   if (dataItem.key === key) {
-    return callback(dataItem.data);
+    return callback(dataItem.data) as ReturnType;
   }
   return runOtherBranches(elseIfBranches, elseFunc);
 }
@@ -261,15 +295,20 @@ export function if_let<
 // Runs the branches following if_branch and if_let.
 function runOtherBranches<
   ReturnType,
-  ElseFuncType extends ElseBranch<ReturnType> | undefined = ElseBranch<ReturnType> | undefined,
-  TypedElifBranchList extends ElifBranchParamTypes<ReturnType> = ElifBranchParamTypes<ReturnType>
+  TypedElifBranchList extends ElifBranchParamTypes<unknown> | undefined,
+  ElseFuncType extends ElseBranch<unknown> | undefined,
 >(
   elseIfBranches?: TypedElifBranchList,
   elseFunc?: ElseFuncType
-): ReturnType {
+): InferredBranchReturnType<ReturnType, TypedElifBranchList, ElseFuncType> {
   if (Array.isArray(elseIfBranches)) {
     for (const elif of elseIfBranches) {
       if (elif instanceof ElseIfLetBranch) {
+        if (elif.shouldFire()) {
+          return elif.runCallback();
+        }
+      }
+      else if (elif instanceof GuardedElseIfLetBranch) {
         if (elif.shouldFire()) {
           return elif.runCallback();
         }
@@ -279,7 +318,7 @@ function runOtherBranches<
       }
     }
   }
-  return elseFunc?.callback()!;
+  return elseFunc?.callback() as ElseFuncType extends ElseBranch<infer R> ? R : undefined;
 }
 
 export function else_branch<ReturnType> (
@@ -301,7 +340,7 @@ export function else_if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
@@ -315,7 +354,7 @@ export function guarded_else_if_let<
   K extends keyof NarrowedParamMap,
   E extends EnumType,
   ParamMap extends EnumKeyMap<E>,
-  ReturnType = void,
+  ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
@@ -574,8 +613,8 @@ export function exhaustive_match<
   ParamMap extends EnumKeyMap<E>,
   ReturnType,
   NarrowedParamMap extends NarrowedEnumKeyMap<E, ParamMap> = NarrowedEnumKeyMap<E, ParamMap>,
-  MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown extends ReturnType ? unknown : ReturnType, NarrowedParamMap>
-    = MultiMatchableBranchEvaluationMap<E, ParamMap, unknown extends ReturnType ? unknown : ReturnType, NarrowedParamMap>
+  MatcherType extends MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
+    = MultiMatchableBranchEvaluationMap<E, ParamMap, unknown, NarrowedParamMap>
 >(
   dataItem: KnownKeyMatchable<E, ParamMap, NarrowedParamMap>,
   matcherFuncMap: MatcherType

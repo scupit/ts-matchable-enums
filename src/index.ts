@@ -86,32 +86,38 @@ function tryThis(m: Matchable<Result<number>>) {
       guarded_branch(() => true,
         ([n]) => "something" as const
       ),
-      // match_rest(() => ['name'] as const)
+      match_rest(() => ['name'] as const)
     ],
-    // ELSE: () => false
+    ELSE: () => false
   })
 }
 
 type v = ReturnType<typeof tryThis>;
 
-guarded_if_let(complexValue, "COMPLEX", ({other}) => other >= 400, ({other}) => {
+const s = guarded_if_let(complexValue, "COMPLEX", ({other}) => other >= 400, ({other}) => {
   console.log(`other is >= 400 (is ${other})`);
+  return 12;
 },
-[ ],
+[
+  else_if_let(complexValue, "NONE", () => [12])
+],
 else_branch(() => {
   console.log("other is less than 400")
+  return "noice"
 }))
 
 // const val: string = if_let(complexValue, "NONE", () => {
-const conditionalExpressionResult: string = if_let(value, "NONE", () => {
+const conditionalExpressionResult = if_let(value, "NONE", () => {
   return "NONE matched"
 },
 [
   guarded_else_if_let(value, "SOME", ([num, _]) => num > 12, ([num, desc]) => {
     return `Matched guarded some value where num > 12 (num === ${num})`;
+    // return num
   }),
   else_if_let(complexValue, "SOME", ([n, str]) => {
-    return `Matched SOME with num ${n} and description ${str}`;
+    // return `Matched SOME with num ${n} and description ${str}`;
+    return [12]
   }),
   else_if_let(otherValue, "UP", ([n1, n2]) => {
     console.log("WOO")
@@ -125,19 +131,60 @@ else_branch(() => {
   return "else hit";
 }))
 
+// const V: string = conditionalExpressionResult;
+
+function TEMP_TEST(m: Matchable<Result<number>>) {
+  return if_let(m, "NONE", () => {
+    return "Yeah your math is bad";
+  }, 
+  [
+    guarded_else_if_let(m, "SOME", ([num, _]) => num > 12, ([num, desc]) => {
+      // return `Matched guarded some value where num > 12 (num === ${num})`;
+      return 200 as const
+    }),
+    else_if_let(value, "SOME", ([_, desc]) => {
+      // return "Hit normal if result with desc: " + desc;
+      return 14 as const;
+    }),
+    else_if(12 < 10, () => {
+      return 18 as const;
+    })
+  ],
+  // [ ],
+  else_branch(() => {
+    // return "Normal if hit else"
+    return {HERE: "noice"};
+  }))
+}
+
+console.log(TEMP_TEST((new Result<number>()).of("SOME", [15, "noice"])))
+
+type TEST_TYPE = ReturnType<typeof TEMP_TEST>;
+
 console.log(conditionalExpressionResult);
 
-const normalIfResult: string = if_branch(10 > 12, () => {
+const normalIfResult = if_branch(10 > 12, () => {
   return "Yeah your math is bad";
 }, 
 // else_if_let(value, "SOME", ([_, desc]) => {
 //   return "Hit normal if result with desc: " + desc;
 // }),
-else_if(12 < 10, () => {
-  return "Noice";
-}),
+// else_if(12 < 10, () => {
+//   return 12;
+// }),
+// [
+//   // else_if_let(value, "SOME", ([_, desc]) => {
+//   //   return "Hit normal if result with desc: " + desc;
+//   //   // return 12 as const;
+//   // }),
+//   else_if(12 < 10, () => {
+//     return 12;
+//   })
+// ],
+[ ],
 else_branch(() => {
   return "Normal if hit else"
+  // return 12;
 }))
 
 console.log(normalIfResult);
